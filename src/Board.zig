@@ -5,7 +5,8 @@ const Bitboard = @import("Bitboard.zig");
 height: [7]u8,
 red: u64,
 yel: u64,
-stm: Side,
+stm: Side = .red,
+move_count: u8,
 
 const Self = @This();
 const Board = Self;
@@ -16,6 +17,7 @@ pub fn startpos() Self {
         .red = 0,
         .yel = 0,
         .stm = .red,
+        .move_count = 0,
     };
 }
 
@@ -33,10 +35,27 @@ fn themPtr(self: *Self) *u64 {
     };
 }
 
-pub fn playMove(self: *Self, which: u8) void {
-    self.usPtr().* |= @as(u64, 1) << @intCast(self.height[which] * 7 + which);
+pub fn playMove(self: *Self, which: anytype) void {
+    std.debug.assert(self.height[which] < 7);
+    std.debug.assert(self.red < (1 << 43));
+    std.debug.assert(self.yel < (1 << 43));
+    self.usPtr().* ^= @as(u64, 1) << @intCast(self.height[which] * 7 + which);
     self.height[which] += 1;
     self.stm = self.stm.flipped();
+    self.move_count += 1;
+}
+
+pub fn undoMove(self: *Self, which: anytype) void {
+    self.move_count -= 1;
+    self.stm = self.stm.flipped();
+    self.height[which] -= 1;
+    self.usPtr().* ^= @as(u64, 1) << @intCast(self.height[which] * 7 + which);
+}
+
+pub fn after(self: Self, move: anytype) Self {
+    var res = self;
+    res.playMove(move);
+    return res;
 }
 
 const red_char = '.';
@@ -140,6 +159,7 @@ pub inline fn yelWon(self: Self) bool {
 }
 
 inline fn isBoardFull(self: Self) bool {
+    // return self.move_count == 42;
     return self.red | self.yel == (1 << 42) - 1;
 }
 

@@ -61,25 +61,31 @@ pub fn isWon(bb: u64) bool {
 
     // return horizontal | vertical | diagonal | antidiagonal != 0;
 
-
-
     // drops RThroughput from 7.8 to 2.7 on zen4/zen5 according to llvm-mca
     // see naive.s vs vectorized.s for example assembly output
 
     const BVec = @Vector(4, u64);
     const SVec = @Vector(4, u6);
 
-    const horizontal_shifts: @Vector(4, i8) = .{ 1, 0, -1, 1 };
-    const vertical_shifts: @Vector(4, i8) = .{ 0, 1, 1, 1 };
-    const first_rank_masks: BVec = .{ moveRight(127, 1), 127, moveLeft(127, 1), moveRight(127, 1) };
+    const first_rank_masks: BVec = comptime .{ moveRight(127, 1), 127, moveLeft(127, 1), moveRight(127, 1) };
 
-    const masks_1 = first_rank_masks * @as(BVec, @splat(low_bits));
-    const shifts_1: SVec = comptime @intCast(horizontal_shifts + @as(@Vector(4, i8), @splat(7)) * vertical_shifts);
+    const masks_1 = comptime first_rank_masks * @as(BVec, @splat(low_bits));
+    const shifts_1: SVec = .{ 1, 7, 6, 8 };
     const masks_2 = masks_1 & masks_1 << shifts_1;
     const shifts_2: SVec = shifts_1 + shifts_1;
 
     var bbs: BVec = @splat(bb);
-    bbs &= bbs << shifts_1 & masks_1;
-    bbs &= bbs << shifts_2 & masks_2;
-    return @reduce(.Or, bbs) != 0;
+    if (@import("builtin").zig_backend == .stage2_x86_64) {
+        var res: u64 = 0;
+        for (0..4) |i| {
+            bbs[i] &= bbs[i] << shifts_1[i] & masks_1[i];
+            bbs[i] &= bbs[i] << shifts_2[i] & masks_2[i];
+            res |= bbs[i];
+        }
+        return res != 0;
+    } else {
+        bbs &= bbs << shifts_1 & masks_1;
+        bbs &= bbs << shifts_2 & masks_2;
+        return @reduce(.Or, bbs) != 0;
+    }
 }

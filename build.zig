@@ -10,10 +10,12 @@ pub fn build(b: *std.Build) void {
     // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
 
+    const quick = b.option(bool, "quick", "build an executable as fast as possible") orelse false;
+
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = if (quick) .Debug else .ReleaseSafe });
 
     // This creates a "module", which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
@@ -63,6 +65,8 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "connect_four_solver",
         .root_module = exe_mod,
+        .use_lld = if (quick) false else null,
+        .use_llvm = if (quick) false else null,
     });
 
     // This declares intent for the executable to be installed into the
